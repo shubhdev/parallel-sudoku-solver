@@ -1,0 +1,6 @@
+#cpp
+*.exe.*
+*.out
+#data
+*.txt
+*.dat
