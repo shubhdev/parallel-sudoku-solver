@@ -1,52 +1,53 @@
-#include <bits/stdc++.h>
+#include <stdio.h>
 #include "sudoku.h"
-#include "main.c"
 
 
-
-
-struct cell
+struct _cell
 {
-	int value
+	int value;
 };
-typedef struct cell Cell ;
+typedef struct _cell Cell ;
 
 
 
-struct board
+struct _board
 {
-	Cell*** bd_array;
+	Cell bd_array[SIZE][SIZE];
 	int bd_size;
 };
-typedef struct board Board;
+typedef struct _board Board;
 
 
-struct stack
+struct _stack
 {
 	Board** st_array;
 	int top;
 };
 
-typedef struct stack Stack;
+typedef struct _stack Stack;
 
 
 
-Stack* Sudoku_Bd;
+Stack Sudoku_Bd;
 
 
 
-Stack* Pop(Stack* st)
+Board* Pop(Stack st)
 {
-	if(top>=0)
+	if(st.top >= 0)
 	{
-		return st->st_array[st->top];
+		return st.st_array[st.top--];
 	}
 	else return NULL;
 }
 
 
-void Push(Board* new_bd , Stack* st)
+void Push(Board* new_bd , Stack st)
 {
-	st->st_array[st->top+1] = new_bd;
-	st->top++;
+	st.st_array[st.top+1] = new_bd;
+	st.top++;
+}
+int **solveSudoku(int ** board){
+	printf("Not Implemented\n");
+	return board;
 }
