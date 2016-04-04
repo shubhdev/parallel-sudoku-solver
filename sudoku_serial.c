@@ -194,6 +194,155 @@ int eliminate(Board *board, int *valid_moves){
 
 
 
+
+
+int prune(Board *board, int* valid_moves){
+	//printf("Inside prune");
+	int flag1 = 1;
+	int i,j;
+	int count_array[SIZE];
+	int last_array[SIZE];
+
+
+
+	//traversal in i
+	FOR(i,SIZE)
+	{
+		memset(count_array,0,SIZE*sizeof(int));
+		memset(last_array,0,SIZE*sizeof(int));
+		
+		FOR(j,SIZE)
+		{
+
+			if(board->arr[i][j].value != 0) 
+				{
+					count_array[board->arr[i][j].value-1]++;
+					continue;
+				}
+			
+			getValidVals(i,j,valid_moves,board);
+			int k;
+			FOR(k,SIZE)
+			{
+				if(!valid_moves[k])
+				{
+					count_array[k]++;
+					last_array[k] = j;
+				}
+			}
+		}
+		int l;
+		FOR(l,SIZE)
+		{
+			if(count_array[l]==0) 
+			{
+				//printf("Here1 %d  %d \n",l+1,i);
+				
+				return 1;
+				//break;
+			}
+		}
+		//if(flag1==0) break;
+	}
+
+	//traversal in j
+	FOR(i,SIZE)
+	{
+		memset(count_array,0,SIZE*sizeof(int));
+		memset(last_array,0,SIZE*sizeof(int));
+		
+		FOR(j,SIZE)
+		{
+			if(board->arr[j][i].value != 0) 
+				{
+					count_array[board->arr[j][i].value-1]++;
+					continue;
+				}
+			
+			getValidVals(j,i,valid_moves,board);
+			int k;
+			FOR(k,SIZE)
+			{
+				if(!valid_moves[k])
+				{
+					count_array[k]++;
+					last_array[k] = j;
+				}
+			}
+		}
+		int l;
+		FOR(l,SIZE)
+		{
+			if(count_array[l]==0) 
+			{
+				//printf("Here2 %d  %d \n",l+1,i);
+				return 1;
+				//break;
+			}
+		}
+		//if(flag1==0) break;
+	}
+
+	//traversal inside box
+	FOR(i,SIZE)
+	{
+		memset(count_array,0,SIZE*sizeof(int));
+		memset(last_array,0,SIZE*sizeof(int));
+		
+		FOR(j,SIZE)
+		{
+
+
+			int i1 = i/MINIGRIDSIZE*MINIGRIDSIZE + j/MINIGRIDSIZE;
+			int j1 = i%MINIGRIDSIZE*MINIGRIDSIZE + j%MINIGRIDSIZE;
+//			printf("%d    %d\n",i1,j1);
+
+			if(board->arr[i1][j1].value != 0) 
+				{
+					count_array[board->arr[i1][j1].value-1]++;
+					continue;
+				}
+			
+			getValidVals(i1,j1,valid_moves,board);
+			int k;
+			FOR(k,SIZE)
+			{
+				if(!valid_moves[k])
+				{
+					count_array[k]++;
+					last_array[k] = j;
+				}
+			}
+		}
+		
+		int l;
+		FOR(l,SIZE)
+		{
+			if(count_array[l]==0) 
+			{
+
+				//printf("Here3 %d  %d \n",l+1,i);
+				return 1;
+				//break;
+			}
+		}
+		//if(flag1==0) break;
+	}
+
+
+
+	return 0;
+}
+
+
+
+
+
+
+
+
+
+
 int **solveSudoku(int ** input){
 
 	allocStack(100000,&global_stack);
@@ -223,26 +372,30 @@ int **solveSudoku(int ** input){
 			break;
 		}
 		int i,j,flag = 0;
-		FOR(i,SIZE)
+		int x = prune(curr_board,valid_mvs);
+		if(x==0)
 		{
-			FOR(j,SIZE)
+			FOR(i,SIZE)
 			{
-				if(curr_board->arr[i][j].value) continue;
-				getValidVals(i,j,valid_mvs,curr_board);
-				int k;
-				FOR(k,SIZE)
+				FOR(j,SIZE)
 				{
-					if(!valid_mvs[k])
+					if(curr_board->arr[i][j].value) continue;
+					getValidVals(i,j,valid_mvs,curr_board);
+					int k;
+					FOR(k,SIZE)
 					{
-						updateBoard(i,j,k+1,curr_board);
-						Push(curr_board,&global_stack);
-						updateBoard(i,j,0,curr_board);
+						if(!valid_mvs[k])
+						{
+							updateBoard(i,j,k+1,curr_board);
+							Push(curr_board,&global_stack);
+							updateBoard(i,j,0,curr_board);
+						}
 					}
+					flag = 1;
+					break;
 				}
-				flag = 1;
-				break;
+				if(flag) break;
 			}
-			if(flag) break;
 		}
 
 		free(curr_board);

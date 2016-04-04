@@ -58,11 +58,12 @@ void Push(Board* new_bd , Stack *st)
 	assert(new_bd !=NULL);
 	Board* nbd= (Board*)malloc(sizeof(Board));
 	*nbd = *new_bd;
-	omp_set_lock(&st->lock);
-
+	
+omp_set_lock(&st->lock);
 	st->st_array[st->top+1] = nbd;
 	st->top += 1;
 	omp_unset_lock(&st->lock);
+	
 
 }
 
@@ -155,31 +156,15 @@ int eliminate(Board *board, int *valid_moves){
 					cnt++;
 				}
 			}
-
 			if(cnt==1) 
 			{
 				updateBoard(i,j,singleton,board);
-				//flag = 1;
-				//elim++;
-				//printf("Elimination" );
 				flag1=0;
-				//break;
 			}
 		}
-		//if(flag1==0) break;
 	}
 	return (flag1 == 0);
 }
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -188,7 +173,6 @@ int lone_ranger(Board *board, int* valid_moves){
 	int i,j;
 	int count_array[SIZE];
 	int last_array[SIZE];
-
 
 	//traversal in i
 	FOR(i,SIZE)
@@ -217,11 +201,8 @@ int lone_ranger(Board *board, int* valid_moves){
 		{
 			updateBoard(i,last_array[l],l+1,board);
 			flag1=0;
-			//break;
 		}
-		//if(flag1==0) break;
 	}
-
 	//traversal in j
 	FOR(i,SIZE)
 	{
@@ -250,10 +231,8 @@ int lone_ranger(Board *board, int* valid_moves){
 			{
 				updateBoard(last_array[l],i,l+1,board);
 				flag1=0;
-				//break;
 			}
 		}
-		//if(flag1==0) break;
 	}
 
 	//traversal inside box
@@ -261,13 +240,12 @@ int lone_ranger(Board *board, int* valid_moves){
 	{
 		memset(count_array,0,SIZE*sizeof(int));
 		memset(last_array,0,SIZE*sizeof(int));
-		int i1 = i/MINIGRIDSIZE + j/MINIGRIDSIZE;
+		
 		FOR(j,SIZE)
 		{
-			
-			int j1 = i%MINIGRIDSIZE + j%MINIGRIDSIZE;
-			if(board->arr[i1][j1].value != 0) continue;
-			
+			int i1 = i/MINIGRIDSIZE*MINIGRIDSIZE + j/MINIGRIDSIZE;
+			int j1 = i%MINIGRIDSIZE*MINIGRIDSIZE + j%MINIGRIDSIZE;
+			if(board->arr[i1][j1].value != 0) continue;		
 			getValidVals(i1,j1,valid_moves,board);
 			int k;
 			FOR(k,SIZE)
@@ -285,27 +263,129 @@ int lone_ranger(Board *board, int* valid_moves){
 			if(count_array[l]==1) 
 			{
 
-				int i2 = i/MINIGRIDSIZE + last_array[l]/MINIGRIDSIZE;
-				int j2 = i%MINIGRIDSIZE + last_array[l]%MINIGRIDSIZE;
+				int i2 = i/MINIGRIDSIZE*MINIGRIDSIZE + last_array[l]/MINIGRIDSIZE;
+				int j2 = i%MINIGRIDSIZE*MINIGRIDSIZE + last_array[l]%MINIGRIDSIZE;
 				updateBoard(i2,j2,l+1,board);
 				flag1=0;
-				//break;
 			}
 		}
-		//if(flag1==0) break;
 	}
-
-
-
 	return (flag1 == 0);
 }
 
 
+//Heuristic Prune - Checks on the basis of all the possibilites whether this board will be pruned later
+int prune(Board *board, int* valid_moves){
 
+	int flag1 = 1;
+	int i,j;
+	int count_array[SIZE];
+	int last_array[SIZE];
 
+	//traversal in i
+	FOR(i,SIZE)
+	{
+		memset(count_array,0,SIZE*sizeof(int));
+		memset(last_array,0,SIZE*sizeof(int));
+		FOR(j,SIZE)
+		{
+			if(board->arr[i][j].value != 0) 
+			{
+				count_array[board->arr[i][j].value-1]++;
+				continue;
+			}
+			getValidVals(i,j,valid_moves,board);
+			int k;
+			FOR(k,SIZE)
+			{
+				if(!valid_moves[k])
+				{
+					count_array[k]++;
+					last_array[k] = j;
+				}
+			}
+		}
+		int l;
+		FOR(l,SIZE)
+		{
+			if(count_array[l]==0) 
+			{
+				return 1;
+			}
+		}
+	}
 
+	//traversal in j
+	FOR(i,SIZE)
+	{
+		memset(count_array,0,SIZE*sizeof(int));
+		memset(last_array,0,SIZE*sizeof(int));
+		
+		FOR(j,SIZE)
+		{
+			if(board->arr[j][i].value != 0) 
+				{
+					count_array[board->arr[j][i].value-1]++;
+					continue;
+				}
+			
+			getValidVals(j,i,valid_moves,board);
+			int k;
+			FOR(k,SIZE)
+			{
+				if(!valid_moves[k])
+				{
+					count_array[k]++;
+					last_array[k] = j;
+				}
+			}
+		}
+		int l;
+		FOR(l,SIZE)
+		{
+			if(count_array[l]==0) 
+			{
+				return 1;
+			}
+		}
+	}
 
-
+	//traversal inside box
+	FOR(i,SIZE)
+	{
+		memset(count_array,0,SIZE*sizeof(int));
+		memset(last_array,0,SIZE*sizeof(int));
+		FOR(j,SIZE)
+		{
+			int i1 = i/MINIGRIDSIZE*MINIGRIDSIZE + j/MINIGRIDSIZE;
+			int j1 = i%MINIGRIDSIZE*MINIGRIDSIZE + j%MINIGRIDSIZE;
+			if(board->arr[i1][j1].value != 0) 
+			{
+				count_array[board->arr[i1][j1].value-1]++;
+				continue;
+			}
+			getValidVals(i1,j1,valid_moves,board);
+			int k;
+			FOR(k,SIZE)
+			{
+				if(!valid_moves[k])
+				{
+					count_array[k]++;
+					last_array[k] = j;
+				}
+			}
+		}
+		int l;
+		FOR(l,SIZE)
+		{
+			if(count_array[l]==0) 
+			{
+				return 1;
+			}
+		}
+	}
+	return 0;
+}
 
 
 
@@ -334,10 +414,10 @@ int **solveSudoku(int ** input){
 		
 		while(1)
 		{
-
-			omp_set_lock(&solution_lock);
+			//omp_set_lock(&solution_lock);
 			if(solution){
-				omp_unset_lock(&solution_lock);
+
+				//omp_unset_lock(&solution_lock);
 				break;
 			}
 			omp_unset_lock(&solution_lock);
@@ -349,53 +429,51 @@ int **solveSudoku(int ** input){
 			}
 			
 			int i,j,flag = 0,flag1=0;
-			int rem = curr_board->fill_count , elim=0;
-			
-			//printf("%f\n",curr_board->fill_count/(float)(SIZE*SIZE));
-			
 			//Heuristic - Elimination
 			// till there is a cell that can be filled via elimination
+
+			//Heuristic - Lone Ranger
+			//till there is a value which is accepted by only one cell in a row , column or box.
 			while(eliminate(curr_board,valid_mvs) || lone_ranger(curr_board,valid_mvs));
 			
 			if(curr_board->fill_count== SIZE*SIZE){
-				//printf("SOLVED!!!\n");
-				omp_set_lock(&solution_lock);
+				//omp_set_lock(&solution_lock);
 				solution = curr_board;
-				omp_unset_lock(&solution_lock);
+				//omp_unset_lock(&solution_lock);
 				break;
 			}
 
-			rem =  curr_board->fill_count-rem;
-			//printf("%d %d %d\n",rem,curr_board->fill_count , SIZE*SIZE);
-
-
-
-			//Heuristic - Lone Ranger
-
 			// Main DFS, after no more simplification of the board is possible
-			FOR(i,SIZE)
-			{
-				FOR(j,SIZE)
-				{
-					if(curr_board->arr[i][j].value) continue;
-					
-					getValidVals(i,j,valid_mvs,curr_board);
-					int k;
-					FOR(k,SIZE)
-					{
-						if(!valid_mvs[k])
-						{
-							updateBoard(i,j,k+1,curr_board);
-							Push(curr_board,&global_stack);
-							updateBoard(i,j,0,curr_board);
-						}
-					}
-					flag = 1;
-					break;
-				}
-				if(flag) break;
-			}
+			memset(valid_mvs,0,sizeof(int)*SIZE);
 
+			//Heuristic - Prune
+			//Prunes all the branches that will be pruned in future as there are conflicts in them.
+			int x =prune(curr_board , valid_mvs);
+			if(x==0)
+			{ 
+				FOR(i,SIZE)
+				{
+					FOR(j,SIZE)
+					{
+						if(curr_board->arr[i][j].value) continue;
+						
+						getValidVals(i,j,valid_mvs,curr_board);
+						int k;
+						FOR(k,SIZE)
+						{
+							if(!valid_mvs[k])
+							{
+								updateBoard(i,j,k+1,curr_board);
+								Push(curr_board,&global_stack);
+								updateBoard(i,j,0,curr_board);
+							}
+						}
+						flag = 1;
+						break;
+					}
+					if(flag) break;
+				}
+			}
 			free(curr_board);
 			curr_board=NULL;
 
@@ -408,5 +486,9 @@ int **solveSudoku(int ** input){
 		printf("SOLVED!!!\n");
 		return getOutput(solution);
 	}
-	else return input;
+	else
+	{
+		printf("NO SOLUTION EXISTS !!!\n");
+		return input;
+	}
 }
