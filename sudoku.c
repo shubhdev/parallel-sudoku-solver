@@ -179,7 +179,7 @@ int **solveSudoku(int ** input){
 	//DFS starts here
 	
 	omp_lock_t solution_lock;
-	mp_init_lock(&solution_lock);
+	omp_init_lock(&solution_lock);
 	
 	Push(curr_board , &global_stack);
 	
@@ -196,12 +196,12 @@ int **solveSudoku(int ** input){
 		while(1)
 		{
 
-			omp_set_lock(&solve_lock);
+			omp_set_lock(&solution_lock);
 			if(solution){
-				omp_unset_lock(&solve_lock);
+				omp_unset_lock(&solution_lock);
 				break;
 			}
-			omp_unset_lock(&solve_lock);
+			omp_unset_lock(&solution_lock);
 			
 			curr_board = Pop(&global_stack);
 
