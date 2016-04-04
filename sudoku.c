@@ -144,6 +144,7 @@ int **solveSudoku(int ** input){
 	Board *solution = NULL;
 	//DFS starts here
 	omp_lock_t solve_lock;
+
 	omp_init_lock(&solve_lock);
 	Push(curr_board , &global_stack);
 	printf("%d\n",global_stack.top);
@@ -153,9 +154,10 @@ int **solveSudoku(int ** input){
 	{
 		#pragma omp single
 		printf("Num threads : %d\nStarting parallel....\n",omp_get_num_threads());
-
+		int valid_mvs[SIZE];
 		while(1)
 		{
+
 			// printf("running...\n");
 			omp_set_lock(&solve_lock);
 			if(solution){
@@ -169,6 +171,48 @@ int **solveSudoku(int ** input){
 			if(!curr_board){
 				continue;
 			}
+			
+			int i,j,flag = 0,flag1=0;
+			int rem = curr_board->fill_count , elim=0;
+			//printf("%f\n",curr_board->fill_count/(float)(SIZE*SIZE));
+			//Heuristic - Elimination
+			while(!flag1)
+			{
+				flag1=1;
+				
+				FOR(i,SIZE)
+				{
+					FOR(j,SIZE)
+					{
+						if(curr_board->arr[i][j].value) continue;
+						
+						getValidVals(i,j,valid_mvs,curr_board);
+						int k,singleton,cnt=0;
+						FOR(k,SIZE)
+						{
+							if(!valid_mvs[k])
+							{
+								singleton=k+1;
+								cnt++;
+							}
+						}
+
+						if(cnt==1) 
+						{
+							updateBoard(i,j,singleton,curr_board);
+							//flag = 1;
+							//elim++;
+							//printf("Elimination" );
+							flag1=0;
+							break;
+						}
+					}
+					if(flag1==0) break;
+				}
+
+				//printf("inside while\n");
+
+			}
 			if(curr_board->fill_count== SIZE*SIZE){
 				printf("SOLVED!!!\n");
 				omp_set_lock(&solve_lock);
@@ -176,13 +220,24 @@ int **solveSudoku(int ** input){
 				omp_unset_lock(&solve_lock);
 				break;
 			}
-			int i,j,flag = 0;
+
+			//solution = curr_board;
+			
+
+			rem =  curr_board->fill_count-rem;
+			//printf("%d %d %d\n",rem,curr_board->fill_count , SIZE*SIZE);
+
+
+
+			//Heuristic - Lone Ranger
+
+
 			FOR(i,SIZE)
 			{
 				FOR(j,SIZE)
 				{
 					if(curr_board->arr[i][j].value) continue;
-					int valid_mvs[SIZE];
+					
 					getValidVals(i,j,valid_mvs,curr_board);
 					int k;
 					FOR(k,SIZE)
