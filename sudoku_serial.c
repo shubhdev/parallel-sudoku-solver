@@ -181,7 +181,7 @@ int **solveSudoku(int ** input){
 	omp_lock_t solve_lock;
 	omp_init_lock(&solve_lock);
 	Push(curr_board , &global_stack);
-	printf("%d\n",global_stack.top);
+
 	free(curr_board);
 	curr_board=NULL;
 	
@@ -192,7 +192,7 @@ int **solveSudoku(int ** input){
 		curr_board = Pop(&global_stack);
 
 		assert(curr_board);
-
+		while(eliminate(curr_board,valid_mvs));
 		if(curr_board->fill_count== SIZE*SIZE){
 			printf("SOLVED!!!\n");
 			solution = curr_board;
