@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "sudoku.h"
+#include <omp.h>
 #include <string.h>
 
 //returns a 2D array from a file containing the Sudoku in space separated format (empty cells are 0)
