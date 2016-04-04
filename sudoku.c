@@ -177,22 +177,25 @@ int **solveSudoku(int ** input){
 	getBoard(input,curr_board);
 	Board *solution = NULL;
 	//DFS starts here
-	omp_lock_t solve_lock;
-
-	omp_init_lock(&solve_lock);
+	
+	omp_lock_t solution_lock;
+	mp_init_lock(&solution_lock);
+	
 	Push(curr_board , &global_stack);
-	printf("%d\n",global_stack.top);
+	
 	free(curr_board);
 	curr_board=NULL;
+	
 	#pragma omp parallel firstprivate(curr_board)
 	{
 		#pragma omp single
 		printf("Num threads : %d\nStarting parallel....\n",omp_get_num_threads());
+		
 		int valid_mvs[SIZE];
+		
 		while(1)
 		{
 
-			// printf("running...\n");
 			omp_set_lock(&solve_lock);
 			if(solution){
 				omp_unset_lock(&solve_lock);
@@ -208,19 +211,20 @@ int **solveSudoku(int ** input){
 			
 			int i,j,flag = 0,flag1=0;
 			int rem = curr_board->fill_count , elim=0;
+			
 			//printf("%f\n",curr_board->fill_count/(float)(SIZE*SIZE));
+			
 			//Heuristic - Elimination
+			// till there is a cell that can be filled via elimination
 			while(eliminate(curr_board,valid_mvs));
+			
 			if(curr_board->fill_count== SIZE*SIZE){
 				printf("SOLVED!!!\n");
-				omp_set_lock(&solve_lock);
+				omp_set_lock(&solution_lock);
 				solution = curr_board;
-				omp_unset_lock(&solve_lock);
+				omp_unset_lock(&solution_lock);
 				break;
 			}
-
-			//solution = curr_board;
-			
 
 			rem =  curr_board->fill_count-rem;
 			//printf("%d %d %d\n",rem,curr_board->fill_count , SIZE*SIZE);
@@ -229,7 +233,7 @@ int **solveSudoku(int ** input){
 
 			//Heuristic - Lone Ranger
 
-
+			// Main DFS, after no more simplification of the board is possible
 			FOR(i,SIZE)
 			{
 				FOR(j,SIZE)
