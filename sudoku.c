@@ -55,9 +55,7 @@ void Push(Board* new_bd , Stack *st)
 	*nbd = *new_bd;
 
 	st->st_array[st->top+1] = nbd;
-	printf("%d\n",st->top);
 	st->top += 1;
-	printf("###%d\n",st->top);
 
 }
 
@@ -130,7 +128,6 @@ void updateBoard(int i , int j , int val , Board* bd)
 }
 
 
-
 int **solveSudoku(int ** input){
 
 	allocStack(100000,&global_stack);
@@ -144,12 +141,12 @@ int **solveSudoku(int ** input){
 	curr_board=NULL;
 	while(global_stack.top>=0)
 	{
-		printf("running...\n");
+		// printf("running...\n");
 		curr_board = Pop(&global_stack);
 
 		assert(curr_board);
 		if(curr_board->fill_count== SIZE*SIZE) break;
-		int i,j;
+		int i,j,flag = 0;
 		FOR(i,SIZE)
 		{
 			FOR(j,SIZE)
@@ -160,14 +157,17 @@ int **solveSudoku(int ** input){
 				int k;
 				FOR(k,SIZE)
 				{
-					if(valid_mvs[k])
+					if(!valid_mvs[k])
 					{
 						updateBoard(i,j,k+1,curr_board);
 						Push(curr_board,&global_stack);
 						updateBoard(i,j,0,curr_board);
 					}
 				}
+				flag = 1;
+				break;
 			}
+			if(flag) break;
 		}
 
 		free(curr_board);
