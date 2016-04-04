@@ -135,7 +135,41 @@ void updateBoard(int i , int j , int val , Board* bd)
 	bd->arr[i][j].value = val;
 }
 
+int eliminate(Board *board, int *valid_moves){
+	int flag1 = 1;
+	int i,j;
 
+	FOR(i,SIZE)
+	{
+		FOR(j,SIZE)
+		{
+			if(board->arr[i][j].value != 0) continue;
+			
+			getValidVals(i,j,valid_moves,board);
+			int k,singleton,cnt=0;
+			FOR(k,SIZE)
+			{
+				if(!valid_moves[k])
+				{
+					singleton=k+1;
+					cnt++;
+				}
+			}
+
+			if(cnt==1) 
+			{
+				updateBoard(i,j,singleton,board);
+				//flag = 1;
+				//elim++;
+				//printf("Elimination" );
+				flag1=0;
+				break;
+			}
+		}
+		if(flag1==0) break;
+	}
+	return (flag1 == 0);
+}
 int **solveSudoku(int ** input){
 
 	allocStack(100000,&global_stack);
@@ -176,43 +210,7 @@ int **solveSudoku(int ** input){
 			int rem = curr_board->fill_count , elim=0;
 			//printf("%f\n",curr_board->fill_count/(float)(SIZE*SIZE));
 			//Heuristic - Elimination
-			while(!flag1)
-			{
-				flag1=1;
-				
-				FOR(i,SIZE)
-				{
-					FOR(j,SIZE)
-					{
-						if(curr_board->arr[i][j].value) continue;
-						
-						getValidVals(i,j,valid_mvs,curr_board);
-						int k,singleton,cnt=0;
-						FOR(k,SIZE)
-						{
-							if(!valid_mvs[k])
-							{
-								singleton=k+1;
-								cnt++;
-							}
-						}
-
-						if(cnt==1) 
-						{
-							updateBoard(i,j,singleton,curr_board);
-							//flag = 1;
-							//elim++;
-							//printf("Elimination" );
-							flag1=0;
-							break;
-						}
-					}
-					if(flag1==0) break;
-				}
-
-				//printf("inside while\n");
-
-			}
+			while(eliminate(curr_board,valid_mvs));
 			if(curr_board->fill_count== SIZE*SIZE){
 				printf("SOLVED!!!\n");
 				omp_set_lock(&solve_lock);
