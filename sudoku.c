@@ -163,13 +163,152 @@ int eliminate(Board *board, int *valid_moves){
 				//elim++;
 				//printf("Elimination" );
 				flag1=0;
-				break;
+				//break;
 			}
 		}
-		if(flag1==0) break;
+		//if(flag1==0) break;
 	}
 	return (flag1 == 0);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+int lone_ranger(Board *board, int* valid_moves){
+	int flag1 = 1;
+	int i,j;
+	int count_array[SIZE];
+	int last_array[SIZE];
+
+
+	//traversal in i
+	FOR(i,SIZE)
+	{
+		memset(count_array,0,SIZE*sizeof(int));
+		memset(last_array,0,SIZE*sizeof(int));
+		
+		FOR(j,SIZE)
+		{
+			if(board->arr[i][j].value != 0) continue;
+			
+			getValidVals(i,j,valid_moves,board);
+			int k;
+			FOR(k,SIZE)
+			{
+				if(!valid_moves[k])
+				{
+					count_array[k]++;
+					last_array[k] = j;
+				}
+			}
+		}
+		int l;
+		FOR(l,SIZE)
+		if(count_array[l]==1) 
+		{
+			updateBoard(i,last_array[l],l+1,board);
+			flag1=0;
+			//break;
+		}
+		//if(flag1==0) break;
+	}
+
+	//traversal in j
+	FOR(i,SIZE)
+	{
+		memset(count_array,0,SIZE*sizeof(int));
+		memset(last_array,0,SIZE*sizeof(int));
+		
+		FOR(j,SIZE)
+		{
+			if(board->arr[j][i].value != 0) continue;
+			
+			getValidVals(j,i,valid_moves,board);
+			int k;
+			FOR(k,SIZE)
+			{
+				if(!valid_moves[k])
+				{
+					count_array[k]++;
+					last_array[k] = j;
+				}
+			}
+		}
+		int l;
+		FOR(l,SIZE)
+		{
+			if(count_array[l]==1) 
+			{
+				updateBoard(last_array[l],i,l+1,board);
+				flag1=0;
+				//break;
+			}
+		}
+		//if(flag1==0) break;
+	}
+
+	//traversal inside box
+	FOR(i,SIZE)
+	{
+		memset(count_array,0,SIZE*sizeof(int));
+		memset(last_array,0,SIZE*sizeof(int));
+		int i1 = i/MINIGRIDSIZE + j/MINIGRIDSIZE;
+		FOR(j,SIZE)
+		{
+			
+			int j1 = i%MINIGRIDSIZE + j%MINIGRIDSIZE;
+			if(board->arr[i1][j1].value != 0) continue;
+			
+			getValidVals(i1,j1,valid_moves,board);
+			int k;
+			FOR(k,SIZE)
+			{
+				if(!valid_moves[k])
+				{
+					count_array[k]++;
+					last_array[k] = j;
+				}
+			}
+		}
+		int l;
+		FOR(l,SIZE)
+		{
+			if(count_array[l]==1) 
+			{
+
+				int i2 = i/MINIGRIDSIZE + last_array[l]/MINIGRIDSIZE;
+				int j2 = i%MINIGRIDSIZE + last_array[l]%MINIGRIDSIZE;
+				updateBoard(i2,j2,l+1,board);
+				flag1=0;
+				//break;
+			}
+		}
+		//if(flag1==0) break;
+	}
+
+
+
+	return (flag1 == 0);
+}
+
+
+
+
+
+
+
+
+
+
 int **solveSudoku(int ** input){
 
 	allocStack(100000,&global_stack);
@@ -216,10 +355,10 @@ int **solveSudoku(int ** input){
 			
 			//Heuristic - Elimination
 			// till there is a cell that can be filled via elimination
-			while(eliminate(curr_board,valid_mvs));
+			while(eliminate(curr_board,valid_mvs) || lone_ranger(curr_board,valid_mvs));
 			
 			if(curr_board->fill_count== SIZE*SIZE){
-				printf("SOLVED!!!\n");
+				//printf("SOLVED!!!\n");
 				omp_set_lock(&solution_lock);
 				solution = curr_board;
 				omp_unset_lock(&solution_lock);
@@ -264,6 +403,10 @@ int **solveSudoku(int ** input){
 	}
 
 	//printf("Not Implemented\n");
-	if(solution) return getOutput(solution);
+	if(solution) 
+	{
+		printf("SOLVED!!!\n");
+		return getOutput(solution);
+	}
 	else return input;
 }

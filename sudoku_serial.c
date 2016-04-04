@@ -162,13 +162,37 @@ int eliminate(Board *board, int *valid_moves){
 				//elim++;
 				//printf("Elimination" );
 				flag1=0;
-				break;
+				//break;
 			}
 		}
-		if(flag1==0) break;
+		//if(flag1==0) break;
 	}
 	return (flag1 == 0);
 }
+
+
+
+
+
+// int Lone_Ranger(Board *board, int *valid_moves){
+// 	int flag1 = 1;
+// 	int i,j;
+// 	int 
+// 	FOR(i,SIZE)
+// 	{
+
+// 		FOR(j,SIZE)
+// 		{
+			
+// 		}
+// 	}
+// 	return (flag1 == 0);
+// }
+
+
+
+
+
 
 int **solveSudoku(int ** input){
 
@@ -190,7 +214,7 @@ int **solveSudoku(int ** input){
 	while(global_stack.top >= 0)
 	{
 		curr_board = Pop(&global_stack);
-
+		//printf("running\n");
 		assert(curr_board);
 		while(eliminate(curr_board,valid_mvs));
 		if(curr_board->fill_count== SIZE*SIZE){
