@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <omp.h>
 #include "sudoku.h"
 
 
@@ -28,6 +29,7 @@ struct _stack
 {
 	Board** st_array;
 	int top;
+	omp_lock_t lock;
 };
 
 typedef struct _stack Stack;
@@ -40,22 +42,27 @@ Stack global_stack;
 
 Board* Pop(Stack *st)
 {
+	Board *res = NULL;
+	omp_set_lock(&st->lock);
 	if(st->top >= 0)
-	{
-		return st->st_array[st->top--];
+	{	
+		res = st->st_array[st->top--];
 	}
-	else return NULL;
+	omp_unset_lock(&st->lock);
+	return res;
 }
 
 
 void Push(Board* new_bd , Stack *st)
-{
+{	
 	assert(new_bd !=NULL);
 	Board* nbd= (Board*)malloc(sizeof(Board));
 	*nbd = *new_bd;
+	omp_set_lock(&st->lock);
 
 	st->st_array[st->top+1] = nbd;
 	st->top += 1;
+	omp_unset_lock(&st->lock);
 
 }
 
@@ -98,6 +105,7 @@ void allocStack(int MAX_SIZE, Stack* st)
 {
 	st->top = -1;
 	st->st_array = (Board**)malloc(MAX_SIZE*sizeof(Board*));
+	omp_init_lock(&st->lock);
 }
 
 
@@ -133,49 +141,72 @@ int **solveSudoku(int ** input){
 	allocStack(100000,&global_stack);
 	Board* curr_board = (Board*)malloc(sizeof(Board));
 	getBoard(input,curr_board);
-
+	Board *solution = NULL;
 	//DFS starts here
+	omp_lock_t solve_lock;
+	omp_init_lock(&solve_lock);
 	Push(curr_board , &global_stack);
 	printf("%d\n",global_stack.top);
 	free(curr_board);
 	curr_board=NULL;
-	while(global_stack.top>=0)
+	#pragma omp parallel firstprivate(curr_board)
 	{
-		// printf("running...\n");
-		curr_board = Pop(&global_stack);
+		#pragma omp single
+		printf("Num threads : %d\nStarting parallel....\n",omp_get_num_threads());
 
-		assert(curr_board);
-		if(curr_board->fill_count== SIZE*SIZE) break;
-		int i,j,flag = 0;
-		FOR(i,SIZE)
+		while(1)
 		{
-			FOR(j,SIZE)
-			{
-				if(curr_board->arr[i][j].value) continue;
-				int valid_mvs[SIZE];
-				getValidVals(i,j,valid_mvs,curr_board);
-				int k;
-				FOR(k,SIZE)
-				{
-					if(!valid_mvs[k])
-					{
-						updateBoard(i,j,k+1,curr_board);
-						Push(curr_board,&global_stack);
-						updateBoard(i,j,0,curr_board);
-					}
-				}
-				flag = 1;
+			// printf("running...\n");
+			omp_set_lock(&solve_lock);
+			if(solution){
+				omp_unset_lock(&solve_lock);
 				break;
 			}
-			if(flag) break;
+			omp_unset_lock(&solve_lock);
+			
+			curr_board = Pop(&global_stack);
+
+			if(!curr_board){
+				continue;
+			}
+			if(curr_board->fill_count== SIZE*SIZE){
+				printf("SOLVED!!!\n");
+				omp_set_lock(&solve_lock);
+				solution = curr_board;
+				omp_unset_lock(&solve_lock);
+				break;
+			}
+			int i,j,flag = 0;
+			FOR(i,SIZE)
+			{
+				FOR(j,SIZE)
+				{
+					if(curr_board->arr[i][j].value) continue;
+					int valid_mvs[SIZE];
+					getValidVals(i,j,valid_mvs,curr_board);
+					int k;
+					FOR(k,SIZE)
+					{
+						if(!valid_mvs[k])
+						{
+							updateBoard(i,j,k+1,curr_board);
+							Push(curr_board,&global_stack);
+							updateBoard(i,j,0,curr_board);
+						}
+					}
+					flag = 1;
+					break;
+				}
+				if(flag) break;
+			}
+
+			free(curr_board);
+			curr_board=NULL;
+
 		}
-
-		free(curr_board);
-		curr_board=NULL;
-
 	}
 
 	//printf("Not Implemented\n");
-	if(curr_board) return getOutput(curr_board);
+	if(solution) return getOutput(solution);
 	else return input;
 }
