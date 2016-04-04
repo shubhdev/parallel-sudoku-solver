@@ -1,4 +1,7 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <assert.h>
+
 #include "sudoku.h"
 
 
@@ -46,7 +49,11 @@ Board* Pop(Stack st)
 
 void Push(Board* new_bd , Stack st)
 {
-	st.st_array[st.top+1] = new_bd;
+	assert(new_bd !=NULL);
+	Board* nbd= (Board*)malloc(sizeof(Board));
+	*nbd = *new_bd;
+
+	st.st_array[st.top+1] = nbd;
 	st.top++;
 }
 
@@ -81,9 +88,34 @@ void getOutput(Board* bd , int** conv_bd)
 }
 
 
+void allocStack(int MAX_SIZE, Stack* st)
+{
+	st->st_array = (Board**)malloc(MAX_SIZE*sizeof(Board*));
+}
+
+
+void getValidVals(int x , int y , int* valid_vals,Board* bd)
+{
+	assert(bd->bd_array[x][y].value==0);
+	int i;
+	#pragma omp parallel for 
+
+	FOR(i,SIZE)
+	{
+		if(bd->bd_array[x][i].value) valid_vals[bd->bd_array[x][i].value-1] =1; 
+		if(bd->bd_array[i][y].value) valid_vals[bd->bd_array[i][y].value-1] =1;
+		int x1 =((x+1)/MINIGRIDSIZE)*MINIGRIDSIZE + (i)/MINIGRIDSIZE ;
+		int y1 = ((y+1)/MINIGRIDSIZE)*MINIGRIDSIZE + (i)%MINIGRIDSIZE ;
+		if(bd->bd_array[x1][y1].value) valid_vals[bd->bd_array[x1][y1].value -1] = 1;			
+	}
+	
+}
+
+
+
 int **solveSudoku(int ** board){
 
-	
+	allocStack(100000,&global_stack);
 	printf("Not Implemented\n");
 	return board;
 }
