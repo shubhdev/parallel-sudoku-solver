@@ -29,6 +29,7 @@ struct _stack
 {
 	Board** st_array;
 	int top;
+	long long pop_count;
 	omp_lock_t lock;
 };
 
@@ -47,6 +48,7 @@ Board* Pop(Stack *st)
 	if(st->top >= 0)
 	{	
 		res = st->st_array[st->top--];
+		st->pop_count++;
 	}
 	omp_unset_lock(&st->lock);
 	return res;
@@ -59,12 +61,10 @@ void Push(Board* new_bd , Stack *st)
 	Board* nbd= (Board*)malloc(sizeof(Board));
 	*nbd = *new_bd;
 	
-omp_set_lock(&st->lock);
+	omp_set_lock(&st->lock);
 	st->st_array[st->top+1] = nbd;
 	st->top += 1;
 	omp_unset_lock(&st->lock);
-	
-
 }
 
 
@@ -81,7 +81,6 @@ void getBoard(int** bd, Board* conv_bd)
 			if(bd[i][j]) conv_bd->fill_count++;
 		}
 	}
-
 }
 
 
@@ -403,10 +402,17 @@ int **solveSudoku(int ** input){
 	Push(curr_board , &global_stack);
 	
 	free(curr_board);
-	curr_board=NULL;
 	
-	#pragma omp parallel firstprivate(curr_board)
+	curr_board = NULL;
+	//int row_perm[SIZE], col_perm[SIZE];
+	int idle_counter = 0;
+	omp_lock_t idle_counter_lock;
+	omp_init_lock(&idle_counter_lock);
+
+	int prune_count = 0;
+	#pragma omp parallel firstprivate(curr_board) reduction(+:prune_count)
 	{
+		int idle = 0;
 		#pragma omp single
 		printf("Num threads : %d\nStarting parallel....\n",omp_get_num_threads());
 		
@@ -414,20 +420,37 @@ int **solveSudoku(int ** input){
 		
 		while(1)
 		{
-			//omp_set_lock(&solution_lock);
 			if(solution){
-
-				//omp_unset_lock(&solution_lock);
 				break;
 			}
-			omp_unset_lock(&solution_lock);
 			
 			curr_board = Pop(&global_stack);
 
 			if(!curr_board){
+				// no work found, if not idle before, increment the idle counter
+				if(!idle){
+					omp_set_lock(&idle_counter_lock);
+					idle_counter++;
+					omp_unset_lock(&idle_counter_lock);
+					idle = 1;
+				}
+				omp_set_lock(&idle_counter_lock);
+				if(idle_counter == omp_get_num_threads()){
+					omp_unset_lock(&idle_counter_lock);
+					break;
+				}
+				omp_unset_lock(&idle_counter_lock);
 				continue;
 			}
-			
+			else{
+				// got work to do! if were idle, decrement the idle counter
+				if(idle){
+					idle = 0;
+					omp_set_lock(&idle_counter_lock);
+					idle_counter--;
+					omp_unset_lock(&idle_counter_lock);
+				}
+			}	
 			int i,j,flag = 0,flag1=0;
 			//Heuristic - Elimination
 			// till there is a cell that can be filled via elimination
@@ -437,9 +460,9 @@ int **solveSudoku(int ** input){
 			while(eliminate(curr_board,valid_mvs) || lone_ranger(curr_board,valid_mvs));
 			
 			if(curr_board->fill_count== SIZE*SIZE){
-				//omp_set_lock(&solution_lock);
+				omp_set_lock(&solution_lock);
 				solution = curr_board;
-				//omp_unset_lock(&solution_lock);
+				omp_unset_lock(&solution_lock);
 				break;
 			}
 
@@ -448,7 +471,8 @@ int **solveSudoku(int ** input){
 
 			//Heuristic - Prune
 			//Prunes all the branches that will be pruned in future as there are conflicts in them.
-			int x =prune(curr_board , valid_mvs);
+			int x = prune(curr_board , valid_mvs);
+			if(x != 0) prune_count++;
 			if(x==0)
 			{ 
 				FOR(i,SIZE)
@@ -481,6 +505,7 @@ int **solveSudoku(int ** input){
 	}
 
 	//printf("Not Implemented\n");
+	printf("Pruned : %d Popped: %lld\n",prune_count,global_stack.pop_count);
 	if(solution) 
 	{
 		printf("SOLVED!!!\n");
