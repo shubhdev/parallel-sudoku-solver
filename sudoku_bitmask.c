@@ -119,7 +119,7 @@ void updateBoard(int i , int j , int new_val , Board* bd)
 	if(new_val == old_val) return;
 	if(new_val > 0 && old_val == 0) bd->fill_count++;
 	else if(new_val == 0 && old_val > 0) bd->fill_count--;
-	else assert(0);
+	
 	bd->arr[i][j].value = new_val;
 	
 	int gid = grid_id(i,j);
@@ -189,7 +189,231 @@ int eliminate(Board *board){
 	}
 	return (flag1 == 0);
 }
+int lone_ranger(Board *board){
+	int flag1 = 1;
+	int i,j;
+	int count_array[SIZE];
+	int last_array[SIZE];
 
+	//traversal in i
+	FOR(i,SIZE)
+	{
+		memset(count_array,0,SIZE*sizeof(int));
+		memset(last_array,0,SIZE*sizeof(int));
+		
+		FOR(j,SIZE)
+		{
+			if(board->arr[i][j].value != 0) continue;
+			
+			int used = used_vals(i,j,board);
+			int k;
+			FOR(k,SIZE)
+			{
+				if(!(used & (1<<k)))
+				{
+					count_array[k]++;
+					last_array[k] = j;
+				}
+			}
+		}
+		int l;
+		FOR(l,SIZE)
+		if(count_array[l]==1) 
+		{
+			// printf("Calling update %d,%d %d->%d\n",i,last_array[l],board->arr[i][last_array[l]].value,l+1);
+
+			// if(board->arr[i][last_array[l]].value){
+			// 	//printf("Calling update %d,%d %d->%d\n",i,last_array[l],board->arr[i][last_array[l]].value,l+1);
+			// 	exit(1);
+			//}
+			//printf("updating...\n");
+			updateBoard(i,last_array[l],l+1,board);
+			flag1=0;
+		}
+	}
+	//traversal in j
+	FOR(i,SIZE)
+	{
+		memset(count_array,0,SIZE*sizeof(int));
+		memset(last_array,0,SIZE*sizeof(int));
+		
+		FOR(j,SIZE)
+		{
+			if(board->arr[j][i].value != 0) continue;
+			
+			int used = used_vals(j,i,board);
+			int k;
+			FOR(k,SIZE)
+			{
+				if(!(used & (1<<k)))
+				{
+					count_array[k]++;
+					last_array[k] = j;
+				}
+			}
+		}
+		int l;
+		FOR(l,SIZE)
+		{
+			if(count_array[l]==1) 
+			{
+				updateBoard(last_array[l],i,l+1,board);
+				flag1=0;
+			}
+		}
+	}
+
+	//traversal inside box
+	FOR(i,SIZE)
+	{
+		memset(count_array,0,SIZE*sizeof(int));
+		memset(last_array,0,SIZE*sizeof(int));
+		
+		FOR(j,SIZE)
+		{
+			int i1 = i/MINIGRIDSIZE*MINIGRIDSIZE + j/MINIGRIDSIZE;
+			int j1 = i%MINIGRIDSIZE*MINIGRIDSIZE + j%MINIGRIDSIZE;
+			if(board->arr[i1][j1].value != 0) continue;		
+			int used = used_vals(i1,j1,board);
+			int k;
+			FOR(k,SIZE)
+			{
+				if(!(used & (1<<k)))
+				{
+					count_array[k]++;
+					last_array[k] = j;
+				}
+			}
+		}
+		int l;
+		FOR(l,SIZE)
+		{
+			if(count_array[l]==1) 
+			{
+
+				int i2 = i/MINIGRIDSIZE*MINIGRIDSIZE + last_array[l]/MINIGRIDSIZE;
+				int j2 = i%MINIGRIDSIZE*MINIGRIDSIZE + last_array[l]%MINIGRIDSIZE;
+				updateBoard(i2,j2,l+1,board);
+				flag1=0;
+			}
+		}
+	}
+	return (flag1 == 0);
+}
+
+
+//Heuristic Prune - Checks on the basis of all the possibilites whether this board will be pruned later
+int prune(Board *board){
+
+	int flag1 = 1;
+	int i,j;
+	int count_array[SIZE];
+	int last_array[SIZE];
+
+	//traversal in i
+	FOR(i,SIZE)
+	{
+		memset(count_array,0,SIZE*sizeof(int));
+		memset(last_array,0,SIZE*sizeof(int));
+		FOR(j,SIZE)
+		{
+			if(board->arr[i][j].value != 0) 
+			{
+				count_array[board->arr[i][j].value-1]++;
+				continue;
+			}
+			int used = used_vals(i,j,board);
+			int k;
+			FOR(k,SIZE)
+			{
+				if(!(used & (1 << k)))
+				{
+					count_array[k]++;
+					last_array[k] = j;
+				}
+			}
+		}
+		int l;
+		FOR(l,SIZE)
+		{
+			if(count_array[l]==0) 
+			{
+				return 1;
+			}
+		}
+	}
+
+	//traversal in j
+	FOR(i,SIZE)
+	{
+		memset(count_array,0,SIZE*sizeof(int));
+		memset(last_array,0,SIZE*sizeof(int));
+		
+		FOR(j,SIZE)
+		{
+			if(board->arr[j][i].value != 0) 
+				{
+					count_array[board->arr[j][i].value-1]++;
+					continue;
+				}
+			
+			int used = used_vals(j,i,board);
+			int k;
+			FOR(k,SIZE)
+			{
+				if(!(used & (1 << k)))
+				{
+					count_array[k]++;
+					last_array[k] = j;
+				}
+			}
+		}
+		int l;
+		FOR(l,SIZE)
+		{
+			if(count_array[l]==0) 
+			{
+				return 1;
+			}
+		}
+	}
+
+	//traversal inside box
+	FOR(i,SIZE)
+	{
+		memset(count_array,0,SIZE*sizeof(int));
+		memset(last_array,0,SIZE*sizeof(int));
+		FOR(j,SIZE)
+		{
+			int i1 = i/MINIGRIDSIZE*MINIGRIDSIZE + j/MINIGRIDSIZE;
+			int j1 = i%MINIGRIDSIZE*MINIGRIDSIZE + j%MINIGRIDSIZE;
+			if(board->arr[i1][j1].value != 0) 
+			{
+				count_array[board->arr[i1][j1].value-1]++;
+				continue;
+			}
+			int used = used_vals(i1,j1,board);
+			int k;
+			FOR(k,SIZE)
+			{
+				if(!(used & (1 << k)))
+				{
+					count_array[k]++;
+					last_array[k] = j;
+				}
+			}
+		}
+		int l;
+		FOR(l,SIZE)
+		{
+			if(count_array[l]==0) 
+			{
+				return 1;
+			}
+		}
+	}
+	return 0;
+}
 
 
 int **solveSudoku(int ** input){
@@ -197,23 +421,22 @@ int **solveSudoku(int ** input){
 	allocStack(100000,&global_stack);
 	Board* curr_board = (Board*)malloc(sizeof(Board));
 	getBoard(input,curr_board);
-	//printf("%d\n",curr_board->row_used[0]);	
-	//assert(curr_board->row_used[0] & 1);
-	Board *solution = NULL;
-	//DFS starts here
 	
+	//solution var and its lock 
+	Board *solution = NULL;
 	omp_lock_t solution_lock;
 	omp_init_lock(&solution_lock);
+
+	// idle counter and its locj
+	int idle_counter = 0;
+	omp_lock_t idle_counter_lock;
+	omp_init_lock(&idle_counter_lock);
 	
 	Push(curr_board , &global_stack);
 	
 	free(curr_board);
-	
 	curr_board = NULL;
-	//int row_perm[SIZE], col_perm[SIZE];
-	int idle_counter = 0;
-	omp_lock_t idle_counter_lock;
-	omp_init_lock(&idle_counter_lock);
+
 
 	int prune_count = 0;
 
@@ -263,7 +486,7 @@ int **solveSudoku(int ** input){
 
 			//Heuristic - Lone Ranger
 			//till there is a value which is accepted by only one cell in a row , column or box.
-			while(eliminate(curr_board));// || lone_ranger(curr_board,valid_mvs));
+			while(eliminate(curr_board) || lone_ranger(curr_board));
 			
 			if(curr_board->fill_count== SIZE*SIZE){
 				omp_set_lock(&solution_lock);
@@ -277,7 +500,7 @@ int **solveSudoku(int ** input){
 
 			//Heuristic - Prune
 			//Prunes all the branches that will be pruned in future as there are conflicts in them.
-			int x = 0;//prune(curr_board , valid_mvs);
+			int x = prune(curr_board);
 			if(x != 0) prune_count++;
 			if(x==0)
 			{ 

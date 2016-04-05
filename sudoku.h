@@ -1,5 +1,5 @@
-#define SIZE 9
-#define MINIGRIDSIZE 3
+#define SIZE 25
+#define MINIGRIDSIZE 5
 
 int **readInput(char *);
 int isValid(int **, int **);
