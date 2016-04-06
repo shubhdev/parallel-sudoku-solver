@@ -61,13 +61,11 @@ Stack global_stack;
 Board* Pop(Stack *st)
 {
 	Board *res = NULL;
-	omp_set_lock(&st->lock);
 	if(st->top >= 0)
 	{	
 		res = st->st_array[st->top--];
 		st->pop_count++;
 	}
-	omp_unset_lock(&st->lock);
 	return res;
 }
 
@@ -78,10 +76,8 @@ void Push(Board* new_bd , Stack *st)
 	Board* nbd= (Board*)malloc(sizeof(Board));
 	*nbd = *new_bd;
 	
-	omp_set_lock(&st->lock);
 	st->st_array[st->top+1] = nbd;
 	st->top += 1;
-	omp_unset_lock(&st->lock);
 }
 
 
@@ -421,7 +417,7 @@ int prune(Board *board){
 	}
 	return 0;
 }
-int getWork(Board *init_bd, Board** work_queue,int *_start){
+int getWork(Board *init_bd, Board** work_queue,int max_size,int *_start){
 	int start = 0, end = 0;
 	work_queue[start] = init_bd;
 	end++;
@@ -432,6 +428,7 @@ int getWork(Board *init_bd, Board** work_queue,int *_start){
       		break;
       	work_queue[start] = 0;
       	work_queue_size--;
+      	start = (start+1)%max_size;
     	int i,j;
     	int flag = 0;
     	FOR(i,SIZE)
@@ -439,9 +436,6 @@ int getWork(Board *init_bd, Board** work_queue,int *_start){
 			FOR(j,SIZE)
 			{
 				if(curr_board->arr[i][j].value) continue;
-				//printf("%d,%d\n",i,j);
-				//print_valid(i,j,curr_board);
-				//getValidVals(i,j,valid_mvs,curr_board);
 				int k,used = used_vals(i,j,curr_board);
 				FOR(k,SIZE)
 				{
@@ -450,7 +444,8 @@ int getWork(Board *init_bd, Board** work_queue,int *_start){
 						updateBoard(i,j,k+1,curr_board);
 						Board *bd = copyBoard(curr_board);
 						work_queue[end] = bd;
-						end = (end+1)%work_queue_size;
+						end = (end+1)%max_size;
+						work_queue_size++;
 						updateBoard(i,j,0,curr_board);
 					}
 				}
@@ -465,7 +460,52 @@ int getWork(Board *init_bd, Board** work_queue,int *_start){
    return work_queue_size;
 }
 Board *solveSerial(Stack *work_stack, Board *init_bd){
-	return 0;
+	
+	Board *solution = NULL;
+	Push(init_bd,work_stack);
+	while(work_stack->top >= 0)
+	{
+
+		Board *curr_board = Pop(work_stack);
+		assert(curr_board);
+		while(eliminate(curr_board) || lone_ranger(curr_board));
+		if(curr_board->fill_count== SIZE*SIZE){
+			printf("Found it!!\n");
+			solution = curr_board;
+			break;
+		}
+		int i,j,flag = 0;
+		int x = prune(curr_board);
+		if(x==0)
+		{
+			FOR(i,SIZE)
+			{
+				FOR(j,SIZE)
+				{
+					if(curr_board->arr[i][j].value) continue;
+					int k, used = used_vals(i,j,curr_board);
+					FOR(k,SIZE)
+					{
+						if(!(used & (1 << k)))
+						{
+							updateBoard(i,j,k+1,curr_board);
+							Push(curr_board,work_stack);
+							updateBoard(i,j,0,curr_board);
+						}
+					}
+					flag = 1;
+					break;
+				}
+				if(flag) break;
+			}
+		}
+
+		free(curr_board);
+		curr_board=NULL;
+	}
+	//while(work_stack->top >= 0)
+	//	free(Pop(work_stack));
+	return solution;
 }
 
 int **solveSudoku(int ** input){
@@ -480,9 +520,10 @@ int **solveSudoku(int ** input){
 	// fill in the work queue
 	
 	printf("After initial transformation, %d empty\n",init_board->fill_count);
-	Board ** work_queue = (Board**)malloc(sizeof(Board*)*10000);
+	int max_size = 10000;
+	Board ** work_queue = (Board**)malloc(sizeof(Board*)*max_size);
 	int start;
-	int work_queue_size = getWork(init_board,work_queue,&start);
+	int work_queue_size = getWork(init_board,work_queue,max_size,&start);
 	printf("Work queue size: %d\n",work_queue_size);
 
 	Stack *work_stack = (Stack*)malloc(sizeof(Stack)*thread_count);
@@ -495,7 +536,7 @@ int **solveSudoku(int ** input){
 	for(i = 0 ; i < work_queue_size ; i++){
 		if(solved) continue;
 		printf("tid : %d,  i: %d\n",omp_get_thread_num(),i);
-		Board *bd = solveSerial(&work_stack[omp_get_thread_num()],work_queue[((start+i)%work_queue_size)]);
+		Board *bd = solveSerial(&work_stack[omp_get_thread_num()],work_queue[((start+i)%max_size)]);
 		if(bd){
 			#pragma omp critical
 			solution = bd;
