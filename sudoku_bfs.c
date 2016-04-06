@@ -172,17 +172,9 @@ int eliminate(Board *board){
 			//getValidVals(i,j,valid_moves,board);
 			int used = used_vals(i,j,board);
 			
-			int k,singleton,cnt=0;
-			FOR(k,SIZE)
-			{
-				if(!(used & (1<<k)))
-				{
-					singleton=k+1;
-					cnt++;
-				}
-			}
-			if(cnt==1) 
-			{
+			int singleton, cnt= __builtin_popcount(used);
+			if(cnt == SIZE-1){ 
+				singleton = __builtin_ffs(~used);
 				updateBoard(i,j,singleton,board);
 				flag1=0;
 			}
@@ -190,6 +182,7 @@ int eliminate(Board *board){
 	}
 	return (flag1 == 0);
 }
+
 int lone_ranger(Board *board){
 	int flag1 = 1;
 	int i,j;
@@ -422,7 +415,7 @@ int getWork(Board *init_bd, Board** work_queue,int max_size,int *_start){
 	work_queue[start] = init_bd;
 	end++;
 	int work_queue_size = 1;
-	while(work_queue_size > 0 && work_queue_size < thread_count){
+	while(work_queue_size > 0 && work_queue_size < 2*thread_count){
     	Board *curr_board = work_queue[start];
     	if(curr_board->fill_count == SIZE*SIZE) 
       		break;
@@ -459,11 +452,12 @@ int getWork(Board *init_bd, Board** work_queue,int max_size,int *_start){
    *_start = start;
    return work_queue_size;
 }
+int global_solved = 0;
 Board *solveSerial(Stack *work_stack, Board *init_bd){
 	
 	Board *solution = NULL;
 	Push(init_bd,work_stack);
-	while(work_stack->top >= 0)
+	while(work_stack->top >= 0 && !global_solved)
 	{
 
 		Board *curr_board = Pop(work_stack);
@@ -541,6 +535,7 @@ int **solveSudoku(int ** input){
 			#pragma omp critical
 			solution = bd;
 			solved = 1;
+			global_solved = 1;
 		}
 	}
 			
