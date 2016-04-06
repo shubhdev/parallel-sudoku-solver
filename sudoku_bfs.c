@@ -6,7 +6,7 @@
 #include "sudoku.h"
 
 
-
+extern int thread_count;
 #define FOR(i,N) for(i=0;i<N;i++)
 
 struct _cell
@@ -157,7 +157,12 @@ void getBoard(int** bd, Board* conv_bd)
 		}
 	}
 }
-
+Board *copyBoard(Board *bd){
+	assert(bd);
+	Board* new_bd = (Board*)malloc(sizeof(Board));
+	*new_bd = *bd;
+	return new_bd;
+}
 int eliminate(Board *board){
 	int flag1 = 1;
 	int i,j;
@@ -171,9 +176,17 @@ int eliminate(Board *board){
 			//getValidVals(i,j,valid_moves,board);
 			int used = used_vals(i,j,board);
 			
-			int singleton, cnt= __builtin_popcount(used);
-			if(cnt == SIZE-1){ 
-				singleton = __builtin_ffs(~used);
+			int k,singleton,cnt=0;
+			FOR(k,SIZE)
+			{
+				if(!(used & (1<<k)))
+				{
+					singleton=k+1;
+					cnt++;
+				}
+			}
+			if(cnt==1) 
+			{
 				updateBoard(i,j,singleton,board);
 				flag1=0;
 			}
@@ -408,128 +421,94 @@ int prune(Board *board){
 	}
 	return 0;
 }
-
+int getWork(Board *init_bd, Board** work_queue,int *_start){
+	int start = 0, end = 0;
+	work_queue[start] = init_bd;
+	end++;
+	int work_queue_size = 1;
+	while(work_queue_size > 0 && work_queue_size < thread_count){
+    	Board *curr_board = work_queue[start];
+    	if(curr_board->fill_count == SIZE*SIZE) 
+      		break;
+      	work_queue[start] = 0;
+      	work_queue_size--;
+    	int i,j;
+    	int flag = 0;
+    	FOR(i,SIZE)
+		{
+			FOR(j,SIZE)
+			{
+				if(curr_board->arr[i][j].value) continue;
+				//printf("%d,%d\n",i,j);
+				//print_valid(i,j,curr_board);
+				//getValidVals(i,j,valid_mvs,curr_board);
+				int k,used = used_vals(i,j,curr_board);
+				FOR(k,SIZE)
+				{
+					if(!(used & (1<<k)))
+					{
+						updateBoard(i,j,k+1,curr_board);
+						Board *bd = copyBoard(curr_board);
+						work_queue[end] = bd;
+						end = (end+1)%work_queue_size;
+						updateBoard(i,j,0,curr_board);
+					}
+				}
+				flag = 1;
+				break;
+			}
+			if(flag) break;
+		}
+      free(curr_board);
+   }
+   *_start = start;
+   return work_queue_size;
+}
+Board *solveSerial(Stack *work_stack, Board *init_bd){
+	return 0;
+}
 
 int **solveSudoku(int ** input){
 
-	allocStack(100000,&global_stack);
-	Board* curr_board = (Board*)malloc(sizeof(Board));
-	getBoard(input,curr_board);
+	// TODO set the desited thread_count here
+	Board* init_board = (Board*)malloc(sizeof(Board));
+	getBoard(input,init_board);
 	
-	//solution var and its lock 
 	Board *solution = NULL;
-	omp_lock_t solution_lock;
-	omp_init_lock(&solution_lock);
-
-	// idle counter and its locj
-	int idle_counter = 0;
-	omp_lock_t idle_counter_lock;
-	omp_init_lock(&idle_counter_lock);
+	int solved = 0;
+	while(eliminate(init_board) || lone_ranger(init_board));
+	// fill in the work queue
 	
-	Push(curr_board , &global_stack);
-	
-	free(curr_board);
-	curr_board = NULL;
+	printf("After initial transformation, %d empty\n",init_board->fill_count);
+	Board ** work_queue = (Board**)malloc(sizeof(Board*)*10000);
+	int start;
+	int work_queue_size = getWork(init_board,work_queue,&start);
+	printf("Work queue size: %d\n",work_queue_size);
 
-
-	int prune_count = 0;
-
-	#pragma omp parallel firstprivate(curr_board) reduction(+:prune_count)
-	{
-		int idle = 0;
-			
-		
-		while(1)
-		{
-
-			if(solution){
-				break;
-			}
-			
-			curr_board = Pop(&global_stack);
-
-			if(!curr_board){
-				
-				// no work found, if not idle before, increment the idle counter
-				if(!idle){
-					omp_set_lock(&idle_counter_lock);
-					idle_counter++;
-					omp_unset_lock(&idle_counter_lock);
-					idle = 1;
-				}
-				omp_set_lock(&idle_counter_lock);
-				if(idle_counter == omp_get_num_threads()){
-					omp_unset_lock(&idle_counter_lock);
-					break;
-				}
-				omp_unset_lock(&idle_counter_lock);
-				continue;
-			}
-			else{
-				// got work to do! if were idle, decrement the idle counter
-				if(idle){
-					idle = 0;
-					omp_set_lock(&idle_counter_lock);
-					idle_counter--;
-					omp_unset_lock(&idle_counter_lock);
-				}
-			}	
-			int i,j,flag = 0,flag1=0;
-			//Heuristic - Elimination
-			// till there is a cell that can be filled via elimination
-
-			//Heuristic - Lone Ranger
-			//till there is a value which is accepted by only one cell in a row , column or box.
-			while(eliminate(curr_board));// || lone_ranger(curr_board));
-			
-			if(curr_board->fill_count== SIZE*SIZE){
-				omp_set_lock(&solution_lock);
-				solution = curr_board;
-				omp_unset_lock(&solution_lock);
-				break;
-			}
-
-			// Main DFS, after no more simplification of the board is possible
-			//memset(valid_mvs,0,sizeof(int)*SIZE);
-
-			//Heuristic - Prune
-			//Prunes all the branches that will be pruned in future as there are conflicts in them.
-			int x = prune(curr_board);
-			if(x != 0) prune_count++;
-			if(x==0)
-			{ 
-				FOR(i,SIZE)
-				{
-					FOR(j,SIZE)
-					{
-						if(curr_board->arr[i][j].value) continue;
-						//printf("%d,%d\n",i,j);
-						//print_valid(i,j,curr_board);
-						//getValidVals(i,j,valid_mvs,curr_board);
-						int k,used = used_vals(i,j,curr_board);
-						FOR(k,SIZE)
-						{
-							if(!(used & (1<<k)))
-							{
-								updateBoard(i,j,k+1,curr_board);
-								Push(curr_board,&global_stack);
-								updateBoard(i,j,0,curr_board);
-							}
-						}
-						flag = 1;
-						break;
-					}
-					if(flag) break;
-				}
-			}
-			free(curr_board);
-			curr_board=NULL;
-
-		}
+	Stack *work_stack = (Stack*)malloc(sizeof(Stack)*thread_count);
+	int i;
+	FOR(i,thread_count){
+		allocStack(100000,work_stack+i);
 	}
 
+	#pragma omp parallel for schedule(dynamic)
+	for(i = 0 ; i < work_queue_size ; i++){
+		if(solved) continue;
+		printf("tid : %d,  i: %d\n",omp_get_thread_num(),i);
+		Board *bd = solveSerial(&work_stack[omp_get_thread_num()],work_queue[((start+i)%work_queue_size)]);
+		if(bd){
+			#pragma omp critical
+			solution = bd;
+			solved = 1;
+		}
+	}
+			
+		
+		
+	
+
 	//printf("Not Implemented\n");
-	printf("Pruned : %d Popped: %lld\n",prune_count,global_stack.pop_count);
+	//printf("Pruned : %d Popped: %lld\n",prune_count,global_stack.pop_count);
 	
 	if(solution) 
 	{
@@ -542,3 +521,4 @@ int **solveSudoku(int ** input){
 		return input;
 	}
 }
+

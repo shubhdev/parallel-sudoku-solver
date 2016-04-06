@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "sudoku.h"
-#include <omp.h>
 #include <string.h>
+#include <omp.h>
+
+int thread_count = 4;
 
 //returns a 2D array from a file containing the Sudoku in space separated format (empty cells are 0)
 int ** readInput(char *filename){
@@ -106,7 +108,7 @@ int main(int argc, char *argv[]){
 	}
 	int **originalGrid = readInput(argv[2]);
 	int **gridToSolve = readInput(argv[2]);
-	int thread_count = atoi(argv[1]);
+	thread_count = atoi(argv[1]);
 	if (thread_count<=0){
 		printf("Usage: Thread Count should be positive\n");
 	}
