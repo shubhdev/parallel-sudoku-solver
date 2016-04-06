@@ -1,4 +1,3 @@
-/*2013CS10212_2013CS10258*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -6,7 +5,7 @@
 #include <omp.h>
 #include "sudoku.h"
 
-
+#define POP_MAX 10000
 
 #define FOR(i,N) for(i=0;i<N;i++)
 
@@ -56,10 +55,11 @@ typedef struct _stack Stack;
 
 
 Stack global_stack;
+Stack pop_stack;
 
 
 
-Board* Pop(Stack *st)
+Board* Pop(Stack *st, Stack* pop_st, int* x)
 {
 	Board *res = NULL;
 	omp_set_lock(&st->lock);
@@ -68,21 +68,46 @@ Board* Pop(Stack *st)
 		res = st->st_array[st->top--];
 		st->pop_count++;
 	}
+	
+
+	if(pop_st->top < POP_MAX && res!=NULL)
+	{
+		pop_st->top +=1;
+		pop_st->st_array[pop_st->top] = res;
+		*x=1;
+		//st->pop_count++;
+	}
+
+	//printf("%d\n",*x);
+	
 	omp_unset_lock(&st->lock);
 	return res;
 }
 
 
-void Push(Board* new_bd , Stack *st)
+int Push(Board* new_bd , Stack *st , Stack* pop_st)
 {	
 	assert(new_bd !=NULL);
-	Board* nbd= (Board*)malloc(sizeof(Board));
+	Board* nbd = NULL;
+	int x=0;
+	//omp_set_lock(&pop_st->lock);
+	omp_set_lock(&st->lock);
+	if(pop_st->top>=0)
+	{
+		nbd = pop_st->st_array[pop_st->top--];
+		x=1;
+	}
+	//omp_unset_lock(&pop_st->lock);
+	if(!nbd) nbd= (Board*)malloc(sizeof(Board));
+	//memmove(nbd , new_bd , sizeof(Board));
 	*nbd = *new_bd;
 	
-	omp_set_lock(&st->lock);
+	
 	st->st_array[st->top+1] = nbd;
 	st->top += 1;
 	omp_unset_lock(&st->lock);
+	//printf("Pushed : %d\n",st->top);
+	return x;
 }
 
 
@@ -419,9 +444,16 @@ int prune(Board *board){
 int **solveSudoku(int ** input){
 
 	allocStack(100000,&global_stack);
+	allocStack(100000,&pop_stack);
 	Board* curr_board = (Board*)malloc(sizeof(Board));
 	getBoard(input,curr_board);
-	
+	int i;
+	FOR(i,100)
+	{
+		pop_stack.st_array[i] = malloc(sizeof(Board));
+
+	}
+	pop_stack.top = 99;
 	//solution var and its lock 
 	Board *solution = NULL;
 	omp_lock_t solution_lock;
@@ -432,7 +464,9 @@ int **solveSudoku(int ** input){
 	omp_lock_t idle_counter_lock;
 	omp_init_lock(&idle_counter_lock);
 	
-	Push(curr_board , &global_stack);
+	int x =Push(curr_board , &global_stack , &pop_stack);
+	//printf("First Push Val : %d\n" , x);
+
 	
 	free(curr_board);
 	curr_board = NULL;
@@ -440,7 +474,7 @@ int **solveSudoku(int ** input){
 
 	int prune_count = 0;
 
-	#pragma omp parallel firstprivate(curr_board) reduction(+:prune_count)
+	#pragma omp parallel firstprivate(curr_board)// reduction(+:prune_count)
 	{
 		int idle = 0;
 			
@@ -451,8 +485,11 @@ int **solveSudoku(int ** input){
 			if(solution){
 				break;
 			}
-			
-			curr_board = Pop(&global_stack);
+			int y=0;
+			//printf("Global top : %d     Pop top  : %d\n", global_stack.top , pop_stack.top);
+			//if(global_stack.top > 200) exit(1);
+			curr_board = Pop(&global_stack , &pop_stack , &y);
+			//printf("%d\n",y);
 
 			if(!curr_board){
 				
@@ -466,6 +503,7 @@ int **solveSudoku(int ** input){
 				omp_set_lock(&idle_counter_lock);
 				if(idle_counter == omp_get_num_threads()){
 					omp_unset_lock(&idle_counter_lock);
+					//printf("Broken No Sol\n");
 					break;
 				}
 				omp_unset_lock(&idle_counter_lock);
@@ -492,6 +530,7 @@ int **solveSudoku(int ** input){
 				omp_set_lock(&solution_lock);
 				solution = curr_board;
 				omp_unset_lock(&solution_lock);
+				//printf("Broken at filled\n");
 				break;
 			}
 
@@ -500,9 +539,7 @@ int **solveSudoku(int ** input){
 
 			//Heuristic - Prune
 			//Prunes all the branches that will be pruned in future as there are conflicts in them.
-
 			int x =  prune(curr_board);
-
 			if(x != 0) prune_count++;
 			if(x==0)
 			{ 
@@ -520,7 +557,7 @@ int **solveSudoku(int ** input){
 							if(!(used & (1<<k)))
 							{
 								updateBoard(i,j,k+1,curr_board);
-								Push(curr_board,&global_stack);
+								Push(curr_board,&global_stack, &pop_stack);
 								updateBoard(i,j,0,curr_board);
 							}
 						}
@@ -530,8 +567,7 @@ int **solveSudoku(int ** input){
 					if(flag) break;
 				}
 			}
-			//printf("popping : %d\n", global_stack.top);
-			free(curr_board);
+			if(!y) free(curr_board);
 			curr_board=NULL;
 
 		}
