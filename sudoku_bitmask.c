@@ -171,17 +171,9 @@ int eliminate(Board *board){
 			//getValidVals(i,j,valid_moves,board);
 			int used = used_vals(i,j,board);
 			
-			int k,singleton,cnt=0;
-			FOR(k,SIZE)
-			{
-				if(!(used & (1<<k)))
-				{
-					singleton=k+1;
-					cnt++;
-				}
-			}
-			if(cnt==1) 
-			{
+			int singleton, cnt= __builtin_popcount(used);
+			if(cnt == SIZE-1){ 
+				singleton = __builtin_ffs(~used);
 				updateBoard(i,j,singleton,board);
 				flag1=0;
 			}
@@ -323,15 +315,17 @@ int prune(Board *board){
 				continue;
 			}
 			int used = used_vals(i,j,board);
-			int k;
+			int k, cnt = 0;
 			FOR(k,SIZE)
 			{
 				if(!(used & (1 << k)))
 				{
 					count_array[k]++;
 					last_array[k] = j;
+					cnt++;
 				}
 			}
+			if(cnt == 0) return 1;
 		}
 		int l;
 		FOR(l,SIZE)
@@ -486,7 +480,7 @@ int **solveSudoku(int ** input){
 
 			//Heuristic - Lone Ranger
 			//till there is a value which is accepted by only one cell in a row , column or box.
-			while(eliminate(curr_board) || lone_ranger(curr_board));
+			while(eliminate(curr_board));// || lone_ranger(curr_board));
 			
 			if(curr_board->fill_count== SIZE*SIZE){
 				omp_set_lock(&solution_lock);
@@ -500,7 +494,7 @@ int **solveSudoku(int ** input){
 
 			//Heuristic - Prune
 			//Prunes all the branches that will be pruned in future as there are conflicts in them.
-			int x = prune(curr_board);
+			int x = 0;//prune(curr_board);
 			if(x != 0) prune_count++;
 			if(x==0)
 			{ 
