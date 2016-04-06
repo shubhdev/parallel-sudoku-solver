@@ -129,9 +129,10 @@ void updateBoard(int i , int j , int new_val , Board* bd)
 	}
 	else{
 		mask = 1<<(old_val-1);
-		bd->row_used[i] &= ~mask;
-		bd->col_used[j] &= ~mask;
-		bd->grid_used[gid] &= ~mask;	
+		mask = ((~mask) & ((1<<SIZE)-1));
+		bd->row_used[i] &= mask;
+		bd->col_used[j] &= mask;
+		bd->grid_used[gid] &= mask;	
 	}
 }
 
@@ -162,7 +163,6 @@ Board *copyBoard(Board *bd){
 int eliminate(Board *board){
 	int flag1 = 1;
 	int i,j;
-
 	FOR(i,SIZE)
 	{
 		FOR(j,SIZE)
@@ -172,7 +172,7 @@ int eliminate(Board *board){
 			//getValidVals(i,j,valid_moves,board);
 			int used = used_vals(i,j,board);
 			
-			int singleton, cnt= __builtin_popcount(used);
+			int singleton, cnt = __builtin_popcount(used);
 			if(cnt == SIZE-1){ 
 				singleton = __builtin_ffs(~used);
 				updateBoard(i,j,singleton,board);
@@ -295,7 +295,6 @@ int lone_ranger(Board *board){
 	return (flag1 == 0);
 }
 
-
 //Heuristic Prune - Checks on the basis of all the possibilites whether this board will be pruned later
 int prune(Board *board){
 
@@ -410,12 +409,72 @@ int prune(Board *board){
 	}
 	return 0;
 }
+
+//Heuristic Prune - Checks on the basis of all the possibilites whether this board will be pruned later
+// int prune(Board *board){
+
+// 	int flag1 = 1;
+// 	int i,j;
+
+// 	//traversal in i
+// 	FOR(i,SIZE)
+// 	{
+// 		int all_used = 0;
+// 		FOR(j,SIZE)
+// 		{
+// 			if(board->arr[i][j].value != 0) 
+// 				continue;
+			
+// 			int used = used_vals(i,j,board);
+// 			all_used |= ~used;
+// 		}
+// 		all_used |= board->row_used[i];
+// 		int check = (1<<SIZE)-1;
+// 		if((all_used & check) != check) return 1;
+// 	}
+
+// 	//traversal in j
+// 	FOR(i,SIZE)
+// 	{
+// 		int all_used = 0;
+// 		FOR(j,SIZE)
+// 		{
+// 			if(board->arr[j][i].value != 0) 
+// 				continue;
+			
+// 			int used = used_vals(j,i,board);
+// 			all_used |= ~used;
+// 		}
+// 		all_used |= board->col_used[i];
+// 		int check = (1<<SIZE)-1;
+// 		if((all_used & check) != check) return 1;
+// 	}
+
+// 	//traversal inside box
+// 	FOR(i,SIZE)
+// 	{
+// 		int all_used = 0;
+// 		FOR(j,SIZE)
+// 		{
+// 			int i1 = i/MINIGRIDSIZE*MINIGRIDSIZE + j/MINIGRIDSIZE;
+// 			int j1 = i%MINIGRIDSIZE*MINIGRIDSIZE + j%MINIGRIDSIZE;
+// 			if(board->arr[i1][j1].value != 0) 
+// 				continue;
+// 			int used = used_vals(i1,j1,board);
+// 			all_used |= ~used;
+// 		}
+// 		all_used |= board->grid_used[i];
+// 		int check = (1<<SIZE)-1;
+// 		if((all_used & check) != check) return 1;
+// 	}
+// 	return 0;
+// }
 int getWork(Board *init_bd, Board** work_queue,int max_size,int *_start){
 	int start = 0, end = 0;
 	work_queue[start] = init_bd;
 	end++;
 	int work_queue_size = 1;
-	while(work_queue_size > 0 && work_queue_size < 2*thread_count){
+	while(work_queue_size > 0 && work_queue_size < thread_count){
     	Board *curr_board = work_queue[start];
     	if(curr_board->fill_count == SIZE*SIZE) 
       		break;
@@ -539,8 +598,9 @@ int **solveSudoku(int ** input){
 		}
 	}
 			
-		
-		
+	// TODO: free memory maybe? not important if program going to exit soon, but not sure what will happen during testing.	
+	FOR(i,thread_count)
+		printf("stack : %d , pop_count: %lld\n",i,work_stack[i].pop_count);
 	
 
 	//printf("Not Implemented\n");

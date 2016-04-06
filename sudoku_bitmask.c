@@ -134,9 +134,10 @@ void updateBoard(int i , int j , int new_val , Board* bd)
 	}
 	else{
 		mask = 1<<(old_val-1);
-		bd->row_used[i] &= ~mask;
-		bd->col_used[j] &= ~mask;
-		bd->grid_used[gid] &= ~mask;	
+		mask = ((~mask) & ((1<<SIZE)-1));
+		bd->row_used[i] &= mask;
+		bd->col_used[j] &= mask;
+		bd->grid_used[gid] &= mask;	
 	}
 }
 
