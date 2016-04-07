@@ -5,7 +5,7 @@
 #include <omp.h>
 #include "sudoku.h"
 
-
+#define LL long long
 extern int thread_count;
 #define FOR(i,N) for(i=0;i<N;i++)
 
@@ -20,24 +20,24 @@ struct _board
 {
 	Cell arr[SIZE][SIZE];
 	int fill_count;
-	int row_used[SIZE];
-	int col_used[SIZE];
-	int grid_used[SIZE];
+	LL row_used[SIZE];
+	LL col_used[SIZE];
+	LL grid_used[SIZE];
 };
 typedef struct _board Board;
 
 inline int grid_id(int i, int j){
 	return (i/MINIGRIDSIZE)*MINIGRIDSIZE + j/MINIGRIDSIZE;
 }
-inline int used_vals(int i, int j,Board *board){
+inline LL used_vals(int i, int j,Board *board){
 	return (board->grid_used[grid_id(i,j)] | board->row_used[i] | board->col_used[j]); 
 }
 void print_valid(int i, int j, Board *board){
 	
 	int used = used_vals(i,j,board);
-	int k;
+	LL k;
 	FOR(k,SIZE){
-		if(!(used & (1<<k))) printf("%d ",k+1);
+		if(!(used & (1LL<<k))) printf("%lld ",k+1);
 	}
 	printf("\n");
 }
@@ -107,7 +107,15 @@ void allocStack(int MAX_SIZE, Stack* st)
 	omp_init_lock(&st->lock);
 }
 
-
+void printBoard(Board *bd){
+	int i,j;
+	FOR(i,SIZE){
+		FOR(j,SIZE){
+			printf("%d ",bd->arr[i][j].value);
+		}
+		printf("\n");
+	}
+}
 void updateBoard(int i , int j , int new_val , Board* bd)
 {
 	//assert(bd->arr[i][j].value == 0);
@@ -120,16 +128,16 @@ void updateBoard(int i , int j , int new_val , Board* bd)
 	
 	int gid = grid_id(i,j);
 	// update the used vals of row,col,grid
-	int mask;
+	LL mask;
 	if(new_val > 0){
-		mask = 1<<(new_val-1);
+		mask = 1LL<<(new_val-1);
 		bd->row_used[i] |= mask;
 		bd->col_used[j] |= mask;
 		bd->grid_used[gid] |= mask;
 	}
-	else{
-		mask = 1<<(old_val-1);
-		mask = ((~mask) & ((1<<SIZE)-1));
+	if(old_val > 0){
+		mask = 1LL<<(old_val-1);
+		mask = ((~mask) & ((1LL<<SIZE)-1));
 		bd->row_used[i] &= mask;
 		bd->col_used[j] &= mask;
 		bd->grid_used[gid] &= mask;	
@@ -170,11 +178,11 @@ int eliminate(Board *board){
 			if(board->arr[i][j].value != 0) continue;
 			
 			//getValidVals(i,j,valid_moves,board);
-			int used = used_vals(i,j,board);
+			LL used = used_vals(i,j,board);
 			
-			int singleton, cnt = __builtin_popcount(used);
+			int singleton, cnt = __builtin_popcountll(used);
 			if(cnt == SIZE-1){ 
-				singleton = __builtin_ffs(~used);
+				singleton = __builtin_ffsll(~used);
 				updateBoard(i,j,singleton,board);
 				flag1=0;
 			}
@@ -199,11 +207,11 @@ int lone_ranger(Board *board){
 		{
 			if(board->arr[i][j].value != 0) continue;
 			
-			int used = used_vals(i,j,board);
+			LL used = used_vals(i,j,board);
 			int k;
 			FOR(k,SIZE)
 			{
-				if(!(used & (1<<k)))
+				if(!(used & (1LL<<k)))
 				{
 					count_array[k]++;
 					last_array[k] = j;
@@ -235,11 +243,11 @@ int lone_ranger(Board *board){
 		{
 			if(board->arr[j][i].value != 0) continue;
 			
-			int used = used_vals(j,i,board);
+			LL used = used_vals(j,i,board);
 			int k;
 			FOR(k,SIZE)
 			{
-				if(!(used & (1<<k)))
+				if(!(used & (1LL<<k)))
 				{
 					count_array[k]++;
 					last_array[k] = j;
@@ -268,11 +276,11 @@ int lone_ranger(Board *board){
 			int i1 = i/MINIGRIDSIZE*MINIGRIDSIZE + j/MINIGRIDSIZE;
 			int j1 = i%MINIGRIDSIZE*MINIGRIDSIZE + j%MINIGRIDSIZE;
 			if(board->arr[i1][j1].value != 0) continue;		
-			int used = used_vals(i1,j1,board);
+			LL used = used_vals(i1,j1,board);
 			int k;
 			FOR(k,SIZE)
 			{
-				if(!(used & (1<<k)))
+				if(!(used & (1LL<<k)))
 				{
 					count_array[k]++;
 					last_array[k] = j;
@@ -296,179 +304,172 @@ int lone_ranger(Board *board){
 }
 
 //Heuristic Prune - Checks on the basis of all the possibilites whether this board will be pruned later
-int prune(Board *board){
-
-	int flag1 = 1;
-	int i,j;
-	int count_array[SIZE];
-	int last_array[SIZE];
-
-	//traversal in i
-	FOR(i,SIZE)
-	{
-		memset(count_array,0,SIZE*sizeof(int));
-		memset(last_array,0,SIZE*sizeof(int));
-		FOR(j,SIZE)
-		{
-			if(board->arr[i][j].value != 0) 
-			{
-				count_array[board->arr[i][j].value-1]++;
-				continue;
-			}
-			int used = used_vals(i,j,board);
-			int k, cnt = 0;
-			FOR(k,SIZE)
-			{
-				if(!(used & (1 << k)))
-				{
-					count_array[k]++;
-					last_array[k] = j;
-					cnt++;
-				}
-			}
-			if(cnt == 0) return 1;
-		}
-		int l;
-		FOR(l,SIZE)
-		{
-			if(count_array[l]==0) 
-			{
-				return 1;
-			}
-		}
-	}
-
-	//traversal in j
-	FOR(i,SIZE)
-	{
-		memset(count_array,0,SIZE*sizeof(int));
-		memset(last_array,0,SIZE*sizeof(int));
-		
-		FOR(j,SIZE)
-		{
-			if(board->arr[j][i].value != 0) 
-				{
-					count_array[board->arr[j][i].value-1]++;
-					continue;
-				}
-			
-			int used = used_vals(j,i,board);
-			int k;
-			FOR(k,SIZE)
-			{
-				if(!(used & (1 << k)))
-				{
-					count_array[k]++;
-					last_array[k] = j;
-				}
-			}
-		}
-		int l;
-		FOR(l,SIZE)
-		{
-			if(count_array[l]==0) 
-			{
-				return 1;
-			}
-		}
-	}
-
-	//traversal inside box
-	FOR(i,SIZE)
-	{
-		memset(count_array,0,SIZE*sizeof(int));
-		memset(last_array,0,SIZE*sizeof(int));
-		FOR(j,SIZE)
-		{
-			int i1 = i/MINIGRIDSIZE*MINIGRIDSIZE + j/MINIGRIDSIZE;
-			int j1 = i%MINIGRIDSIZE*MINIGRIDSIZE + j%MINIGRIDSIZE;
-			if(board->arr[i1][j1].value != 0) 
-			{
-				count_array[board->arr[i1][j1].value-1]++;
-				continue;
-			}
-			int used = used_vals(i1,j1,board);
-			int k;
-			FOR(k,SIZE)
-			{
-				if(!(used & (1 << k)))
-				{
-					count_array[k]++;
-					last_array[k] = j;
-				}
-			}
-		}
-		int l;
-		FOR(l,SIZE)
-		{
-			if(count_array[l]==0) 
-			{
-				return 1;
-			}
-		}
-	}
-	return 0;
-}
-
-//Heuristic Prune - Checks on the basis of all the possibilites whether this board will be pruned later
 // int prune(Board *board){
 
 // 	int flag1 = 1;
 // 	int i,j;
+// 	int count_array[SIZE];
 
 // 	//traversal in i
 // 	FOR(i,SIZE)
 // 	{
-// 		int all_used = 0;
+// 		memset(count_array,0,SIZE*sizeof(int));
 // 		FOR(j,SIZE)
 // 		{
 // 			if(board->arr[i][j].value != 0) 
+// 			{
+// 				count_array[board->arr[i][j].value-1]++;
 // 				continue;
-			
-// 			int used = used_vals(i,j,board);
-// 			all_used |= ~used;
+// 			}
+// 			LL used = used_vals(i,j,board);
+// 			int k, cnt = 0;
+// 			FOR(k,SIZE)
+// 			{
+// 				if(!(used & (1LL << k)))
+// 				{
+// 					count_array[k]++;
+// 					cnt++;
+// 				}
+// 			}
+// 			//if(cnt == 0) return 1;
 // 		}
-// 		all_used |= board->row_used[i];
-// 		int check = (1<<SIZE)-1;
-// 		if((all_used & check) != check) return 1;
+// 		int l;
+// 		FOR(l,SIZE)
+// 		{
+// 			if(count_array[l]==0) 
+// 			{
+// 				return 1;
+// 			}
+// 		}
 // 	}
 
 // 	//traversal in j
 // 	FOR(i,SIZE)
 // 	{
-// 		int all_used = 0;
+// 		memset(count_array,0,SIZE*sizeof(int));
+		
 // 		FOR(j,SIZE)
 // 		{
 // 			if(board->arr[j][i].value != 0) 
-// 				continue;
+// 				{
+// 					count_array[board->arr[j][i].value-1]++;
+// 					continue;
+// 				}
 			
-// 			int used = used_vals(j,i,board);
-// 			all_used |= ~used;
+// 			LL used = used_vals(j,i,board);
+// 			int k;
+// 			FOR(k,SIZE)
+// 			{
+// 				if(!(used & (1LL << k)))
+// 				{
+// 					count_array[k]++;
+// 				}
+// 			}
 // 		}
-// 		all_used |= board->col_used[i];
-// 		int check = (1<<SIZE)-1;
-// 		if((all_used & check) != check) return 1;
+// 		int l;
+// 		FOR(l,SIZE)
+// 		{
+// 			if(count_array[l]==0) 
+// 			{
+// 				return 1;
+// 			}
+// 		}
 // 	}
 
 // 	//traversal inside box
 // 	FOR(i,SIZE)
 // 	{
-// 		int all_used = 0;
+// 		memset(count_array,0,SIZE*sizeof(int));
 // 		FOR(j,SIZE)
 // 		{
 // 			int i1 = i/MINIGRIDSIZE*MINIGRIDSIZE + j/MINIGRIDSIZE;
 // 			int j1 = i%MINIGRIDSIZE*MINIGRIDSIZE + j%MINIGRIDSIZE;
 // 			if(board->arr[i1][j1].value != 0) 
+// 			{
+// 				count_array[board->arr[i1][j1].value-1]++;
 // 				continue;
-// 			int used = used_vals(i1,j1,board);
-// 			all_used |= ~used;
+// 			}
+// 			LL used = used_vals(i1,j1,board);
+// 			int k;
+// 			FOR(k,SIZE)
+// 			{
+// 				if(!(used & (1LL << k)))
+// 				{
+// 					count_array[k]++;
+// 				}
+// 			}
 // 		}
-// 		all_used |= board->grid_used[i];
-// 		int check = (1<<SIZE)-1;
-// 		if((all_used & check) != check) return 1;
+// 		int l;
+// 		FOR(l,SIZE)
+// 		{
+// 			if(count_array[l]==0) 
+// 			{
+// 				return 1;
+// 			}
+// 		}
 // 	}
 // 	return 0;
-// }
+//  }
+
+//Heuristic Prune - Checks on the basis of all the possibilites whether this board will be pruned later
+int prune(Board *board){
+
+	int flag1 = 1;
+	int i,j;
+	//traversal in i
+	FOR(i,SIZE)
+	{
+		LL all_used = 0;
+		FOR(j,SIZE)
+		{
+			if(board->arr[i][j].value != 0) 
+				continue;
+			
+			LL used = used_vals(i,j,board);
+			all_used |= ~used;
+		}
+		all_used |= board->row_used[i];
+		LL check = (1LL<<SIZE)-1;
+		if((all_used & check) != check) return 1;
+	}
+
+	//traversal in j
+	FOR(i,SIZE)
+	{
+		LL all_used = 0;
+		FOR(j,SIZE)
+		{
+			if(board->arr[j][i].value != 0) 
+				continue;
+			
+			LL used = used_vals(j,i,board);
+			all_used |= ~used;
+		}
+		all_used |= board->col_used[i];
+		LL check = (1LL<<SIZE)-1;
+		
+		if((all_used & check) != check) return 1;
+	}
+
+	//traversal inside box
+	FOR(i,SIZE)
+	{
+		LL all_used = 0;
+		FOR(j,SIZE)
+		{
+			int i1 = i/MINIGRIDSIZE*MINIGRIDSIZE + j/MINIGRIDSIZE;
+			int j1 = i%MINIGRIDSIZE*MINIGRIDSIZE + j%MINIGRIDSIZE;
+			if(board->arr[i1][j1].value != 0) 
+				continue;
+			LL used = used_vals(i1,j1,board);
+			all_used |= ~used;
+		}
+		all_used |= board->grid_used[i];
+		LL check = (1LL<<SIZE)-1;
+		if((all_used & check) != check) return 1;
+	}
+	return 0;
+}
 int getWork(Board *init_bd, Board** work_queue,int max_size,int *_start){
 	int start = 0, end = 0;
 	work_queue[start] = init_bd;
@@ -488,10 +489,11 @@ int getWork(Board *init_bd, Board** work_queue,int max_size,int *_start){
 			FOR(j,SIZE)
 			{
 				if(curr_board->arr[i][j].value) continue;
-				int k,used = used_vals(i,j,curr_board);
+				int k;
+				LL used = used_vals(i,j,curr_board);
 				FOR(k,SIZE)
 				{
-					if(!(used & (1<<k)))
+					if(!(used & (1LL<<k)))
 					{
 						updateBoard(i,j,k+1,curr_board);
 						Board *bd = copyBoard(curr_board);
@@ -511,9 +513,9 @@ int getWork(Board *init_bd, Board** work_queue,int max_size,int *_start){
    *_start = start;
    return work_queue_size;
 }
+LL pruned = 0;
 int global_solved = 0;
 Board *solveSerial(Stack *work_stack, Board *init_bd){
-	
 	Board *solution = NULL;
 	Push(init_bd,work_stack);
 	while(work_stack->top >= 0 && !global_solved)
@@ -528,7 +530,14 @@ Board *solveSerial(Stack *work_stack, Board *init_bd){
 			break;
 		}
 		int i,j,flag = 0;
-		int x = prune(curr_board);
+		int x = prune(curr_board);//, x1 = prune1(curr_board);
+		// if(x1 != x){
+		// 	printf("%d %d\n",x,x1);
+		// 	printBoard(curr_board);
+		// 	printf("%lld %lld\n",curr_board->row_used[6] & (1<<5),curr_board->col_used[14]);
+		// 	exit(1);
+		// }
+		if(x) pruned++;
 		if(x==0)
 		{
 			FOR(i,SIZE)
@@ -536,10 +545,11 @@ Board *solveSerial(Stack *work_stack, Board *init_bd){
 				FOR(j,SIZE)
 				{
 					if(curr_board->arr[i][j].value) continue;
-					int k, used = used_vals(i,j,curr_board);
+					int k;
+					LL  used = used_vals(i,j,curr_board);
 					FOR(k,SIZE)
 					{
-						if(!(used & (1 << k)))
+						if(!(used & (1LL << k)))
 						{
 							updateBoard(i,j,k+1,curr_board);
 							Push(curr_board,work_stack);
@@ -564,6 +574,12 @@ Board *solveSerial(Stack *work_stack, Board *init_bd){
 int **solveSudoku(int ** input){
 
 	// TODO set the desited thread_count here
+	if(SIZE == 9){
+		thread_count = 1;
+	}
+	else{
+		thread_count = (thread_count > 4)?4:thread_count;
+	}
 	Board* init_board = (Board*)malloc(sizeof(Board));
 	getBoard(input,init_board);
 	
@@ -571,7 +587,8 @@ int **solveSudoku(int ** input){
 	int solved = 0;
 	while(eliminate(init_board) || lone_ranger(init_board));
 	// fill in the work queue
-	
+	if(init_board->fill_count == SIZE*SIZE) return getOutput(init_board);
+
 	printf("After initial transformation, %d empty\n",init_board->fill_count);
 	int max_size = 10000;
 	Board ** work_queue = (Board**)malloc(sizeof(Board*)*max_size);
@@ -585,7 +602,7 @@ int **solveSudoku(int ** input){
 		allocStack(100000,work_stack+i);
 	}
 
-	#pragma omp parallel for schedule(dynamic)
+	#pragma omp parallel for schedule(dynamic) num_threads(thread_count)
 	for(i = 0 ; i < work_queue_size ; i++){
 		if(solved) continue;
 		printf("tid : %d,  i: %d\n",omp_get_thread_num(),i);
@@ -599,13 +616,13 @@ int **solveSudoku(int ** input){
 	}
 			
 	// TODO: free memory maybe? not important if program going to exit soon, but not sure what will happen during testing.	
-	FOR(i,thread_count)
-		printf("stack : %d , pop_count: %lld\n",i,work_stack[i].pop_count);
+	//FOR(i,thread_count)
+	//	printf("stack : %d , pop_count: %lld\n",i,work_stack[i].pop_count);
 	
 
 	//printf("Not Implemented\n");
 	//printf("Pruned : %d Popped: %lld\n",prune_count,global_stack.pop_count);
-	
+	printf("Pruned %lld\n",pruned);
 	if(solution) 
 	{
 		printf("SOLVED!!!\n");
